@@ -1,0 +1,10 @@
+This is a userspace touchscreen driver for cypress ctma300 as used in HP Veer configured for WebOS.
+I get lots of help from reading CM project in https://github.com/CyanogenMod/android_device_hp_tenderloin.git
+
+ctp.c create a uinput device for touchscreen
+HPVeer.idc is used in Android, and it should be copied to system/usr/idc/
+
+ctp-static is the binary program of ctp.c. 
+If you have problem in compiling ctp.c, please don't delete it.
+
+by xndcn.
