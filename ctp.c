@@ -574,11 +574,11 @@ int calc_point(void)
 			//	tp[tpoint][k].tracking_id);
 			//send_uevent(uinput_fd, EV_ABS, ABS_MT_TOUCH_MAJOR,
 			//	tp[tpoint][k].touch_major);
-			//send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_X, tp[tpoint][k].x);
-			//send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_Y, tp[tpoint][k].y);
+			send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_X, tp[tpoint][k].x);
+			send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_Y, tp[tpoint][k].y);
 			//send_uevent(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 255);
 			send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 1);
-			//send_uevent(uinput_fd, EV_SYN, SYN_MT_REPORT, 0);
+			send_uevent(uinput_fd, EV_SYN, SYN_MT_REPORT, 0);
 		} else if (tp[tpoint][k].touch_delay) {
 			// This touch didn't meet the threshold so we don't report it yet
 			tp[tpoint][k].touch_delay--;
@@ -635,9 +635,6 @@ void liftoff(void)
 	//send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
 	//send_uevent(uinput_fd, EV_ABS, ABS_MT_TOUCH_MAJOR,0);
 	//send_uevent(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0);
-	
-	send_uevent(uinput_fd, EV_ABS, ABS_X, 0);
-	send_uevent(uinput_fd, EV_ABS, ABS_Y, 0);
 	
 	send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 0);
 	send_uevent(uinput_fd, EV_SYN, SYN_MT_REPORT, 0);
@@ -735,30 +732,21 @@ void init_uinput()
 	device.id.vendor = 1;
 	device.id.product = 1;
 	device.id.version = 1;
-
-	device.absmax[ABS_X] = 320;
-	device.absmax[ABS_Y] = 400;
-	device.absmin[ABS_X] = 0;
-	device.absmin[ABS_Y] = 0;
-	//device.absfuzz[ABS_X] = 2;
-	//device.absflat[ABS_X] = 0;
-	//device.absfuzz[ABS_Y] = 1;
-	//device.absflat[ABS_Y] = 0;
 	
 	//device.absmax[ABS_MT_PRESSURE] = 255;
 	//device.absmin[ABS_MT_PRESSURE] = 0;
 	//device.absmax[ABS_MT_TOUCH_MAJOR] = 255;
 	//device.absmin[ABS_MT_TOUCH_MAJOR] = 0;
 	
-	//device.absmax[ABS_MT_POSITION_X] = 320;
-	//device.absmax[ABS_MT_POSITION_Y] = 400;
-	//device.absmin[ABS_MT_POSITION_X] = 0;
-	//device.absmin[ABS_MT_POSITION_Y] = 0;
+	device.absmax[ABS_MT_POSITION_X] = 320;
+	device.absmax[ABS_MT_POSITION_Y] = 400;
+	device.absmin[ABS_MT_POSITION_X] = 0;
+	device.absmin[ABS_MT_POSITION_Y] = 0;
 	
-	//device.absfuzz[ABS_MT_POSITION_X] = 2;
-	//device.absflat[ABS_MT_POSITION_X] = 0;
-	//device.absfuzz[ABS_MT_POSITION_Y] = 1;
-	//device.absflat[ABS_MT_POSITION_Y] = 0;
+	device.absfuzz[ABS_MT_POSITION_X] = 2;
+	device.absflat[ABS_MT_POSITION_X] = 0;
+	device.absfuzz[ABS_MT_POSITION_Y] = 1;
+	device.absflat[ABS_MT_POSITION_Y] = 0;
 
 
 	if (write(uinput_fd,&device,sizeof(device)) != sizeof(device))
@@ -774,31 +762,19 @@ void init_uinput()
 		fprintf(stderr, "error keybit key\n");
 		
 	if (ioctl(uinput_fd,UI_SET_EVBIT, EV_SYN) < 0)
-		fprintf(stderr, "error evbit key\n");	
-
-	if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_X) < 0)
-		fprintf(stderr, "error tool rel\n");
-
-	if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_Y) < 0)
-		fprintf(stderr, "error tool rel\n");
-	
-	//if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_TRACKING_ID) < 0)
-	//	fprintf(stderr, "error trkid rel\n");
+		fprintf(stderr, "error evbit key\n");
 
 	//if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_TOUCH_MAJOR) < 0)
 	//	fprintf(stderr, "error tool rel\n");
 
-	//if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_WIDTH_MAJOR) < 0)
-	//	fprintf(stderr, "error tool rel\n");
+	if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_POSITION_X) < 0)
+		fprintf(stderr, "error tool rel\n");
 
-	//if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_POSITION_X) < 0)
-	//	fprintf(stderr, "error tool rel\n");
-
-	//if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_POSITION_Y) < 0)
-	//	fprintf(stderr, "error tool rel\n");
+	if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_POSITION_Y) < 0)
+		fprintf(stderr, "error tool rel\n");
 	
-	//if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_PRESSURE) < 0)
-	//	fprintf(stderr, "error tool rel\n");
+	if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_PRESSURE) < 0)
+		fprintf(stderr, "error tool rel\n");
 
 	if (ioctl(uinput_fd,UI_DEV_CREATE) < 0)
 		fprintf(stderr, "error create\n");
