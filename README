@@ -8,3 +8,7 @@ ctp-static is the binary program of ctp.c.
 If you have problem in compiling ctp.c, please don't delete it.
 
 by xndcn.
+
+UPDATE:
+03-26	add multi-touch support.
+03-27	add simple gesture support(back, menu & home)

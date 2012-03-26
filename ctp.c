@@ -149,12 +149,15 @@ unsigned char rx_buf[132];
 #define X_AXIS_MINUS1 X_AXIS_POINTS - 1 // 6
 #define Y_AXIS_MINUS1 Y_AXIS_POINTS - 1 // 9
 
-#define X_RESOLUTION  500
-#define Y_RESOLUTION  320
-#define X_LOCATION_VALUE ((float)X_RESOLUTION) / ((float)Y_AXIS_MINUS1)
-#define Y_LOCATION_VALUE ((float)Y_RESOLUTION) / ((float)X_AXIS_MINUS1)
+#define X_RESOLUTION  320
+#define Y_RESOLUTION  500
+#define X_LOCATION_VALUE ((float)X_RESOLUTION) / ((float)X_AXIS_MINUS1)
+#define Y_LOCATION_VALUE ((float)Y_RESOLUTION) / ((float)Y_AXIS_MINUS1)
 #define X_RESOLUTION_MINUS1 X_RESOLUTION - 1
 #define Y_RESOLUTION_MINUS1 Y_RESOLUTION - 1
+
+#define X_SCREEN 320
+#define Y_SCREEN 420
 
 #define TOUCH_INITIAL_THRESHOLD 32
 int touch_initial_thresh = TOUCH_INITIAL_THRESHOLD;
@@ -166,9 +169,9 @@ int touch_continue_thresh = TOUCH_CONTINUE_THRESHOLD;
 #define LARGE_AREA_FRINGE 5 // Threshold for large area fringe
 
 // This is used to help calculate ABS_TOUCH_MAJOR
-// This is roughly the value of 400 / 10 or 320 / 7
+// This is roughly the value of 500 / 10 or 320 / 7
 #define PIXELS_PER_X 45
-#define PIXELS_PER_Y 40
+#define PIXELS_PER_Y 50
 
 struct touchpoint {
 	// Power or weight of the touch, used for calculating the center point.
@@ -212,6 +215,8 @@ struct touchpoint {
 struct touchpoint tp[3][MAX_TOUCH];
 // These indexes locate the appropriate set of touches in tp
 int tpoint, prevtpoint, prev2tpoint;
+
+struct touchpoint start_tp, finish_tp;
 
 // Contains all of the data from the digitizer
 unsigned char matrix[X_AXIS_POINTS][Y_AXIS_POINTS];
@@ -473,6 +478,8 @@ int send_uevent(int fd, __u16 type, __u16 code, __s32 value)
 	return 0;
 }
 
+int first_touch = 1;
+
 int calc_point(void)
 {
 	int i, j, k;
@@ -531,15 +538,9 @@ int calc_point(void)
 				tp[tpoint][tpc].i = avgi;
 				tp[tpoint][tpc].j = avgj;
 				tp[tpoint][tpc].touch_major = MAX(maxi * PIXELS_PER_X, maxj * PIXELS_PER_Y);
-				tp[tpoint][tpc].tracking_id = -1;
-				tp[tpoint][tpc].y = tp[tpoint][tpc].j *	X_LOCATION_VALUE;
-				tp[tpoint][tpc].x = tp[tpoint][tpc].i *	Y_LOCATION_VALUE;
-				//tp[tpoint][tpc].y = X_RESOLUTION_MINUS1 - tp[tpoint][tpc].j *
-				//	X_LOCATION_VALUE;
-				//tp[tpoint][tpc].x = Y_RESOLUTION_MINUS1 - tp[tpoint][tpc].i *
-				//	Y_LOCATION_VALUE;
-				// It is possible for x and y to be negative with the math
-				// above so we force them to 0 if they are negative.
+				tp[tpoint][tpc].tracking_id = -1;				
+				tp[tpoint][tpc].x = tp[tpoint][tpc].i *	X_LOCATION_VALUE;
+				tp[tpoint][tpc].y = tp[tpoint][tpc].j *	Y_LOCATION_VALUE;
 				if (tp[tpoint][tpc].x < 0)
 					tp[tpoint][tpc].x = 0;
 				if (tp[tpoint][tpc].y < 0)
@@ -566,17 +567,17 @@ int calc_point(void)
 #if EVENT_DEBUG
 			printf("send event for tracking ID: %i\n",
 				tp[tpoint][k].tracking_id);
-#endif			
-			send_uevent(uinput_fd, EV_ABS, ABS_X, tp[tpoint][k].x);
-			send_uevent(uinput_fd, EV_ABS, ABS_Y, tp[tpoint][k].y);
-			//send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 1);
-			//send_uevent(uinput_fd, EV_ABS, ABS_MT_TRACKING_ID,
-			//	tp[tpoint][k].tracking_id);
-			//send_uevent(uinput_fd, EV_ABS, ABS_MT_TOUCH_MAJOR,
-			//	tp[tpoint][k].touch_major);
+#endif
+			if (first_touch) {
+				first_touch = 0;
+				start_tp = tp[tpoint][k];
+			} else {
+				finish_tp = tp[tpoint][k];
+			}
+			if (tp[tpoint][k].x > X_SCREEN || tp[tpoint][k].y > Y_SCREEN)
+				continue;
 			send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_X, tp[tpoint][k].x);
 			send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_Y, tp[tpoint][k].y);
-			//send_uevent(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 255);
 			send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 1);
 			send_uevent(uinput_fd, EV_SYN, SYN_MT_REPORT, 0);
 		} else if (tp[tpoint][k].touch_delay) {
@@ -588,6 +589,7 @@ int calc_point(void)
 		send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
 	}
 	previoustpc = tpc;
+	
 	return tpc;
 }
 
@@ -639,6 +641,29 @@ void liftoff(void)
 	send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 0);
 	send_uevent(uinput_fd, EV_SYN, SYN_MT_REPORT, 0);
 	send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+	
+	first_touch = 1;
+	
+	if (start_tp.y > Y_SCREEN) {
+		if (finish_tp.y < Y_SCREEN) {
+			send_uevent(uinput_fd, EV_KEY, KEY_HOME, 1);
+			send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+			send_uevent(uinput_fd, EV_KEY, KEY_HOME, 0);
+			send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+		} else {
+			if (finish_tp.x < start_tp.x) {
+				send_uevent(uinput_fd, EV_KEY, KEY_BACK, 1);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+				send_uevent(uinput_fd, EV_KEY, KEY_BACK, 0);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+			} else {			
+				send_uevent(uinput_fd, EV_KEY, KEY_MENU, 1);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+				send_uevent(uinput_fd, EV_KEY, KEY_MENU, 0);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+			}
+		}
+	}
 }
 
 #define LIFTOFF_TIMEOUT 25000
@@ -650,7 +675,7 @@ void irq_message()
 	char buf[32];
 	int i;
 	int x, y;
-	struct spi_ioc_transfer ioc;
+	struct spi_ioc_transfer ioc;	
 	int need_liftoff = 0;
 	
 	FD_ZERO(&rdfds);
@@ -686,7 +711,6 @@ void irq_message()
 		else {
 			if(FD_ISSET(ctp_fd, &rdfds)) {
 				read(ctp_fd, buf, 2);
-				//printf(buf);
 				
 				ret = write(ss_fd, "0", 1);
 				ret = ioctl(spi_fd, SPI_IOC_MESSAGE(1), &ioc);
@@ -695,18 +719,11 @@ void irq_message()
 				for (y = 0; y < 10 ; y++) {
 					for (x = 0; x < 7 ; x++) {
 						matrix[x][y] = rx_buf[x * 10 + y + 2];
-						//printf ("0x%02x, ", rx_buf[x * 10 + y + 2]);							
 					}
-					//printf("\n");
 				}
-				//printf("touch\n");
-				//printf("%d\n", need_liftoff);
 				if (!calc_point()) {
 				// Sometimes there's data but no valid touches due to threshold
 					if (need_liftoff) {
-
-						//printf("snarf2 called liftoff\n");
-
 						liftoff();
 						clear_arrays();
 						need_liftoff = 0;
@@ -738,8 +755,8 @@ void init_uinput()
 	//device.absmax[ABS_MT_TOUCH_MAJOR] = 255;
 	//device.absmin[ABS_MT_TOUCH_MAJOR] = 0;
 	
-	device.absmax[ABS_MT_POSITION_X] = 320;
-	device.absmax[ABS_MT_POSITION_Y] = 400;
+	device.absmax[ABS_MT_POSITION_X] = X_SCREEN;
+	device.absmax[ABS_MT_POSITION_Y] = Y_SCREEN;
 	device.absmin[ABS_MT_POSITION_X] = 0;
 	device.absmin[ABS_MT_POSITION_Y] = 0;
 	
@@ -759,6 +776,13 @@ void init_uinput()
 		fprintf(stderr, "error evbit rel\n");
 	
 	if (ioctl(uinput_fd,UI_SET_KEYBIT, BTN_TOUCH) < 0)
+		fprintf(stderr, "error keybit key\n");
+		
+	if (ioctl(uinput_fd,UI_SET_KEYBIT, KEY_BACK) < 0)
+		fprintf(stderr, "error keybit key\n");
+	if (ioctl(uinput_fd,UI_SET_KEYBIT, KEY_MENU) < 0)
+		fprintf(stderr, "error keybit key\n");
+	if (ioctl(uinput_fd,UI_SET_KEYBIT, KEY_HOME) < 0)
 		fprintf(stderr, "error keybit key\n");
 		
 	if (ioctl(uinput_fd,UI_SET_EVBIT, EV_SYN) < 0)
