@@ -1,6 +1,6 @@
 CC = arm-linux-gcc
 TARGET = ctp
-$(TARGET): ctp.c
+$(TARGET): $(TARGET).c
 	$(CC) -o $(TARGET) ctp.c -lm -static
 
 clean:

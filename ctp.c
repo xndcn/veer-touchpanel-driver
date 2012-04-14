@@ -38,10 +38,10 @@ void enable_ctp()
 {
 	int vdd_fd, xres_fd;
 	int rc;
-	
+
 	__u8 wordbits = 8;
 	__u32 speedhz = 1600000;
-	
+
 	if (!spi_fd)
 		spi_fd = open("/dev/spidev0.2", O_RDWR);
 	if (spi_fd <= 0)
@@ -51,31 +51,31 @@ void enable_ctp()
 		ss_fd = open("/sys/user_hw/pins/ctp/ss/level", O_RDWR);
 	if (ss_fd <= 0)
 		printf("TScontrol: Cannot open ss - %d\n", errno);
-		
+
 	if (!int_fd)
 		int_fd = open("/sys/user_hw/pins/ctp/int/irqrequest", O_RDWR);
 	if (int_fd <= 0)
 		printf("TScontrol: Cannot open int - %d\n", errno);
-		
+
 	if (!ctp_fd)
 		ctp_fd = open("/sys/user_hw/pins/ctp/int/irq", O_RDONLY);
 	if (ctp_fd <= 0)
 		printf("TScontrol: Cannot open ctp - %d\n", errno);
-		
+
 	usleep(500);
 	rc = ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &wordbits);
 	usleep(500);
 	rc = ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speedhz);
 	usleep(50000);
-	
-	
+
+
 	vdd_fd = open("/sys/devices/platform/cy8ctma300/vcpin", O_WRONLY);
 	if (vdd_fd < 0)
 		printf("TScontrol: Cannot open vdd - %d\n", errno);
 	xres_fd = open("/sys/devices/platform/cy8ctma300/xres", O_WRONLY);
 	if (xres_fd < 0)
 		printf("TScontrol: Cannot open xres - %d\n", errno);
-		
+
 	rc = write(xres_fd, "1", 1);
 	if (rc != 1)
 		printf("TSpower, failed set xres\n");
@@ -83,21 +83,21 @@ void enable_ctp()
 	rc = write(xres_fd, "0", 1);
 	if (rc != 1)
 		printf("TSpower, failed reset xres\n");
-	
+
 	usleep(50000);
-	
+
 	rc = write(int_fd, "1", 1);
 	if (rc != 1)
 		printf("TSpower, failed to enable int\n");
-    rc = write(vdd_fd, "1", 1);
+	rc = write(vdd_fd, "1", 1);
 	if (rc != 1)
 		printf("TSpower, failed to enable vdd\n");
 	rc = write(ss_fd, "1", 1);
 	if (rc != 1)
 		printf("TSpower, failed to enable ss\n");
-	
+
 	usleep(500);
-		
+
 	rc = write(xres_fd, "1", 1);
 	if (rc != 1)
 		printf("TSpower, failed set xres\n");
@@ -125,7 +125,7 @@ void init_ctp()
 	int rc;
 	int i;
 	char buf[32];
-	
+
 	for (i = 0; i < 8; i++) {
 		rc = write(spi_fd, init_array[i], 3);
 		if (rc != 3)
@@ -133,7 +133,7 @@ void init_ctp()
 		rc = write(ss_fd, "1", 1);
 		if (i < 7)
 			rc = write(ss_fd, "0", 1);
-	
+
 		usleep(500);
 	}
 	read(ctp_fd, buf, 2);
@@ -157,7 +157,11 @@ unsigned char rx_buf[132];
 #define Y_RESOLUTION_MINUS1 Y_RESOLUTION - 1
 
 #define X_SCREEN 320
-#define Y_SCREEN 420
+#define Y_SCREEN 400
+#define GESTURE_Y_THRESHOLD 20
+#define GESTURE_X_THRESHOLD 40
+#define GESTURE_TIME_THRESHOLD 200000
+#define GESTURE_LONGTOUCH_TIME_THRESHOLD 325000
 
 #define TOUCH_INITIAL_THRESHOLD 32
 int touch_initial_thresh = TOUCH_INITIAL_THRESHOLD;
@@ -224,7 +228,7 @@ unsigned char matrix[X_AXIS_POINTS][Y_AXIS_POINTS];
 int invalid_matrix[X_AXIS_POINTS][Y_AXIS_POINTS];
 
 void determine_area_loc_fringe(float *isum, float *jsum, int *tweight, int i,
-	int j, int cur_touch_id){
+		int j, int cur_touch_id){
 	float powered;
 
 	// Set fringe point to used for this touch point
@@ -242,64 +246,64 @@ void determine_area_loc_fringe(float *isum, float *jsum, int *tweight, int i,
 	if (i > 0 && invalid_matrix[i-1][j] != cur_touch_id)
 	{
 		if (matrix[i-1][j] >= LARGE_AREA_FRINGE &&
-			matrix[i-1][j] < matrix[i][j])
+				matrix[i-1][j] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i - 1, j,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (i < X_AXIS_MINUS1 && invalid_matrix[i+1][j] != cur_touch_id)
 	{
 		if (matrix[i+1][j] >= LARGE_AREA_FRINGE &&
-			matrix[i+1][j] < matrix[i][j])
+				matrix[i+1][j] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i + 1, j,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j > 0 && invalid_matrix[i][j-1] != cur_touch_id) {
 		if (matrix[i][j-1] >= LARGE_AREA_FRINGE &&
-			matrix[i][j-1] < matrix[i][j])
+				matrix[i][j-1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i, j - 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j < Y_AXIS_MINUS1 && invalid_matrix[i][j+1] != cur_touch_id)
 	{
 		if (matrix[i][j+1] >= LARGE_AREA_FRINGE &&
-			matrix[i][j+1] < matrix[i][j])
+				matrix[i][j+1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i, j + 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (i > 0 && j > 0 && invalid_matrix[i-1][j-1] != cur_touch_id)
 	{
 		if (matrix[i-1][j-1] >= LARGE_AREA_FRINGE &&
-			matrix[i-1][j-1] < matrix[i][j])
+				matrix[i-1][j-1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i - 1, j - 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (i < X_AXIS_MINUS1 && j > 0 && invalid_matrix[i+1][j-1] != cur_touch_id)
 	{
 		if (matrix[i+1][j-1] >= LARGE_AREA_FRINGE &&
-			matrix[i+1][j-1] < matrix[i][j])
+				matrix[i+1][j-1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i + 1, j - 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j < Y_AXIS_MINUS1 && i > 0 && invalid_matrix[i-1][j+1] != cur_touch_id)
 	{
 		if (matrix[i-1][j+1] >= LARGE_AREA_FRINGE &&
-			matrix[i-1][j+1] < matrix[i][j])
+				matrix[i-1][j+1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i - 1, j + 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j < Y_AXIS_MINUS1 && i < X_AXIS_MINUS1 &&
-		invalid_matrix[i+1][j+1] != cur_touch_id)
+			invalid_matrix[i+1][j+1] != cur_touch_id)
 	{
 		if (matrix[i+1][j+1] >= LARGE_AREA_FRINGE &&
-			matrix[i+1][j+1] < matrix[i][j])
+				matrix[i+1][j+1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i + 1, j + 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 }
 
 void determine_area_loc(float *isum, float *jsum, int *tweight, int i, int j,
-	int *mini, int *maxi, int *minj, int *maxj, int cur_touch_id,
-	int *highest_val){
+		int *mini, int *maxi, int *minj, int *maxj, int cur_touch_id,
+		int *highest_val){
 	float powered;
 
 	// Invalidate this touch point so that we don't process it later
@@ -334,82 +338,82 @@ void determine_area_loc(float *isum, float *jsum, int *tweight, int i, int j,
 	{
 		if (matrix[i-1][j] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i - 1, j, mini, maxi, minj,
-			maxj, cur_touch_id, highest_val);
+					maxj, cur_touch_id, highest_val);
 		else if (matrix[i-1][j] >= LARGE_AREA_FRINGE &&
-			matrix[i-1][j] < matrix[i][j])
+				matrix[i-1][j] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i - 1, j,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (i < X_AXIS_MINUS1 && invalid_matrix[i+1][j] != cur_touch_id)
 	{
 		if (matrix[i+1][j] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i + 1, j, mini, maxi, minj,
-			maxj, cur_touch_id, highest_val);
+					maxj, cur_touch_id, highest_val);
 		else if (matrix[i+1][j] >= LARGE_AREA_FRINGE &&
-			matrix[i+1][j] < matrix[i][j])
+				matrix[i+1][j] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i + 1, j,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j > 0 && invalid_matrix[i][j-1] != cur_touch_id)
 	{
 		if (matrix[i][j-1] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i, j - 1, mini, maxi, minj,
-				maxj, cur_touch_id, highest_val);
+					maxj, cur_touch_id, highest_val);
 		else if (matrix[i][j-1] >= LARGE_AREA_FRINGE &&
-			matrix[i][j-1] < matrix[i][j])
+				matrix[i][j-1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i, j - 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j < Y_AXIS_MINUS1 && invalid_matrix[i][j+1] != cur_touch_id)
 	{
 		if (matrix[i][j+1] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i, j + 1, mini, maxi, minj,
-				maxj, cur_touch_id, highest_val);
+					maxj, cur_touch_id, highest_val);
 		else if (matrix[i][j+1] >= LARGE_AREA_FRINGE &&
-			matrix[i][j+1] < matrix[i][j])
+				matrix[i][j+1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i, j + 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (i > 0 && j > 0 && invalid_matrix[i-1][j-1] != cur_touch_id)
 	{
 		if (matrix[i-1][j-1] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i - 1, j - 1, mini, maxi,
-				minj, maxj, cur_touch_id, highest_val);
+					minj, maxj, cur_touch_id, highest_val);
 		else if (matrix[i-1][j-1] >= LARGE_AREA_FRINGE &&
-			matrix[i-1][j-1] < matrix[i][j])
+				matrix[i-1][j-1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i - 1, j - 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (i < X_AXIS_MINUS1 && j > 0 && invalid_matrix[i+1][j-1] != cur_touch_id)
 	{
 		if (matrix[i+1][j-1] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i + 1, j - 1, mini, maxi,
-				minj, maxj, cur_touch_id, highest_val);
+					minj, maxj, cur_touch_id, highest_val);
 		else if (matrix[i+1][j-1] >= LARGE_AREA_FRINGE &&
-			matrix[i+1][j-1] < matrix[i][j])
+				matrix[i+1][j-1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i + 1, j - 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j < Y_AXIS_MINUS1 && i > 0 && invalid_matrix[i-1][j+1] != cur_touch_id)
 	{
 		if (matrix[i-1][j+1] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i - 1, j + 1, mini, maxi,
-				minj, maxj, cur_touch_id, highest_val);
+					minj, maxj, cur_touch_id, highest_val);
 		else if (matrix[i-1][j+1] >= LARGE_AREA_FRINGE &&
-			matrix[i-1][j+1] < matrix[i][j])
+				matrix[i-1][j+1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i - 1, j + 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 	if (j < Y_AXIS_MINUS1 && i < X_AXIS_MINUS1 &&
-		invalid_matrix[i+1][j+1] != cur_touch_id)
+			invalid_matrix[i+1][j+1] != cur_touch_id)
 	{
 		if (matrix[i+1][j+1] >= LARGE_AREA_UNPRESS)
 			determine_area_loc(isum, jsum, tweight, i + 1, j + 1, mini, maxi,
-				minj, maxj, cur_touch_id, highest_val);
+					minj, maxj, cur_touch_id, highest_val);
 		else if (matrix[i+1][j+1] >= LARGE_AREA_FRINGE &&
-			matrix[i+1][j+1] < matrix[i][j])
+				matrix[i+1][j+1] < matrix[i][j])
 			determine_area_loc_fringe(isum, jsum, tweight, i + 1, j + 1,
-				cur_touch_id);
+					cur_touch_id);
 	}
 }
 
@@ -479,6 +483,16 @@ int send_uevent(int fd, __u16 type, __u16 code, __s32 value)
 }
 
 int first_touch = 1;
+int is_gesture = 0;
+enum Gesture {
+	NONE, UP, LEFT, RIGHT, DOUBLE_CLICK, LONG_TOUCH, LONG_OFF
+} gesture, last_gesture;
+struct timeval last_touch;
+int need_liftoff = 0;
+inline long diff_time(struct timeval a, struct timeval b)
+{
+	return (a.tv_sec - b.tv_sec) * 1000000 + (a.tv_usec - b.tv_usec);
+}
 
 int calc_point(void)
 {
@@ -492,6 +506,8 @@ int calc_point(void)
 	int new_debounce_touch = 0;
 	static int initialx, initialy;
 #endif
+	struct timeval now;
+	gettimeofday(&now, NULL);
 
 	if (tp[tpoint][0].x < -20) {
 		// We had a total liftoff
@@ -519,7 +535,7 @@ int calc_point(void)
 				printf("%2.2X ", matrix[i][j]);
 #endif
 			if (tpc < MAX_TOUCH && matrix[i][j] > touch_continue_thresh &&
-				!invalid_matrix[i][j]) {
+					!invalid_matrix[i][j]) {
 
 				isum = 0;
 				jsum = 0;
@@ -527,7 +543,7 @@ int calc_point(void)
 				int mini = i, maxi = i, minj = j, maxj = j;
 				int highest_val = matrix[i][j];
 				determine_area_loc(&isum, &jsum, &tweight, i, j, &mini,
-					&maxi, &minj, &maxj, tpc + 1, &highest_val);
+						&maxi, &minj, &maxj, tpc + 1, &highest_val);
 
 				avgi = isum / (float)tweight;
 				avgj = jsum / (float)tweight;
@@ -543,9 +559,14 @@ int calc_point(void)
 				tp[tpoint][tpc].y = tp[tpoint][tpc].j *	Y_LOCATION_VALUE;
 				if (tp[tpoint][tpc].x < 0)
 					tp[tpoint][tpc].x = 0;
+				if (tp[tpoint][tpc].x > X_SCREEN)
+					tp[tpoint][tpc].x = X_SCREEN;
 				if (tp[tpoint][tpc].y < 0)
 					tp[tpoint][tpc].y = 0;
-					
+				if (tp[tpoint][tpc].y > Y_SCREEN &&
+						tp[tpoint][tpc].y < Y_SCREEN + GESTURE_Y_THRESHOLD)
+					tp[tpoint][tpc].y = Y_SCREEN;				
+
 				tp[tpoint][tpc].unfiltered_x = tp[tpoint][tpc].x;
 				tp[tpoint][tpc].unfiltered_y = tp[tpoint][tpc].y;
 				tp[tpoint][tpc].highest_val = highest_val;
@@ -561,21 +582,36 @@ int calc_point(void)
 			}
 		}
 	}
-	
+
 	for (k = 0; k < tpc; k++) {
 		if (tp[tpoint][k].highest_val && !tp[tpoint][k].touch_delay) {
 #if EVENT_DEBUG
 			printf("send event for tracking ID: %i\n",
-				tp[tpoint][k].tracking_id);
+					tp[tpoint][k].tracking_id);
 #endif
 			if (first_touch) {
 				first_touch = 0;
+				gettimeofday(&last_touch, NULL);
 				start_tp = tp[tpoint][k];
+				if (start_tp.y >= Y_SCREEN + GESTURE_Y_THRESHOLD) {
+					is_gesture = 1;
+				}
 			} else {
 				finish_tp = tp[tpoint][k];
 			}
-			if (tp[tpoint][k].x > X_SCREEN || tp[tpoint][k].y > Y_SCREEN)
+			if (is_gesture) {
+				if (start_tp.x - finish_tp.x < GESTURE_X_THRESHOLD && 
+						finish_tp.x - start_tp.x < GESTURE_X_THRESHOLD)
+					if (diff_time(now, last_touch) > GESTURE_LONGTOUCH_TIME_THRESHOLD) {
+						gesture = LONG_TOUCH;
+
+						need_liftoff = 1;
+						previoustpc = tpc;
+						return 0;
+					}
 				continue;
+			}
+
 			send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_X, tp[tpoint][k].x);
 			send_uevent(uinput_fd, EV_ABS, ABS_MT_POSITION_Y, tp[tpoint][k].y);
 			send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 1);
@@ -589,7 +625,7 @@ int calc_point(void)
 		send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
 	}
 	previoustpc = tpc;
-	
+
 	return tpc;
 }
 
@@ -604,7 +640,7 @@ void clear_arrays(void)
 			tp[i][j].pw = -1000;
 			tp[i][j].i = -1000;
 			tp[i][j].j = -1000;
-			
+
 			tp[i][j].tracking_id = -1;
 			tp[i][j].prev_loc = -1;
 #if MAX_DELTA_FILTER
@@ -627,42 +663,81 @@ void clear_arrays(void)
 	}
 }
 
+struct timeval last_liftoff;
 void liftoff(void)
 {
 	// Sends liftoff events - nothing is touching the screen
 #if EVENT_DEBUG
 	printf("liftoff function\n");
 #endif
+	struct timeval now;
+	gettimeofday(&now, NULL);
 	//send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 0);
 	//send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
 	//send_uevent(uinput_fd, EV_ABS, ABS_MT_TOUCH_MAJOR,0);
 	//send_uevent(uinput_fd, EV_ABS, ABS_MT_PRESSURE, 0);
-	
+
 	send_uevent(uinput_fd, EV_KEY, BTN_TOUCH, 0);
 	send_uevent(uinput_fd, EV_SYN, SYN_MT_REPORT, 0);
 	send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
-	
+
 	first_touch = 1;
-	
-	if (start_tp.y > Y_SCREEN) {
-		if (finish_tp.y < Y_SCREEN) {
-			send_uevent(uinput_fd, EV_KEY, KEY_HOME, 1);
-			send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
-			send_uevent(uinput_fd, EV_KEY, KEY_HOME, 0);
-			send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
-		} else {
-			if (finish_tp.x < start_tp.x) {
+
+	if (is_gesture) {
+		is_gesture = 0;
+		if (gesture == NONE) {
+			if (finish_tp.y <= Y_SCREEN) {
+				gesture = UP;			
+			} else {
+				if (start_tp.x - finish_tp.x >= GESTURE_X_THRESHOLD) {
+					gesture = LEFT;				
+				} else if (finish_tp.x - start_tp.x >= GESTURE_X_THRESHOLD) {
+					gesture = RIGHT;				
+				} else if (diff_time(now, last_liftoff) < GESTURE_TIME_THRESHOLD) {
+					gesture = DOUBLE_CLICK;	
+				}
+			}
+			if (last_gesture == LONG_TOUCH)
+				gesture = LONG_OFF;
+			gettimeofday(&last_liftoff, NULL);
+		}
+		switch (gesture) {
+			case UP:
+				send_uevent(uinput_fd, EV_KEY, KEY_HOME, 1);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+				send_uevent(uinput_fd, EV_KEY, KEY_HOME, 0);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+				break;
+			case LEFT:
 				send_uevent(uinput_fd, EV_KEY, KEY_BACK, 1);
 				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
 				send_uevent(uinput_fd, EV_KEY, KEY_BACK, 0);
 				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
-			} else {			
+				break;
+			case RIGHT:
 				send_uevent(uinput_fd, EV_KEY, KEY_MENU, 1);
 				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
 				send_uevent(uinput_fd, EV_KEY, KEY_MENU, 0);
 				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
-			}
+				break;
+			case DOUBLE_CLICK:
+				send_uevent(uinput_fd, EV_KEY, KEY_HOME, 1);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+				send_uevent(uinput_fd, EV_KEY, KEY_HOME, 0);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+				break;
+			case LONG_TOUCH:
+				send_uevent(uinput_fd, EV_KEY, KEY_HOME, 1);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+				break;
+			case LONG_OFF:
+				send_uevent(uinput_fd, EV_KEY, KEY_HOME, 0);
+				send_uevent(uinput_fd, EV_SYN, SYN_REPORT, 0);
+			default:
+				break;
 		}
+		last_gesture = gesture;
+		gesture = NONE;
 	}
 }
 
@@ -675,12 +750,11 @@ void irq_message()
 	char buf[32];
 	int i;
 	int x, y;
-	struct spi_ioc_transfer ioc;	
-	int need_liftoff = 0;
-	
+	struct spi_ioc_transfer ioc;
+
 	FD_ZERO(&rdfds);
 	FD_SET(ctp_fd, &rdfds);
-	
+
 	ioc.tx_buf = NULL;
 	ioc.rx_buf = rx_buf;
 	ioc.len = 132;
@@ -689,7 +763,7 @@ void irq_message()
 	ioc.bits_per_word = 8;
 	ioc.cs_change = 0;
 	ioc.pad = 0;
-	
+
 	while (1) {
 		FD_ZERO(&rdfds);
 		FD_SET(ctp_fd, &rdfds);
@@ -700,9 +774,9 @@ void irq_message()
 			perror("select");
 		else if(ret == 0) {
 			if (need_liftoff) {
-//#if EVENT_DEBUG
+				//#if EVENT_DEBUG
 				//printf("timeout called liftoff\n");
-//#endif
+				//#endif
 				liftoff();
 				clear_arrays();
 				need_liftoff = 0;
@@ -711,25 +785,25 @@ void irq_message()
 		else {
 			if(FD_ISSET(ctp_fd, &rdfds)) {
 				read(ctp_fd, buf, 2);
-				
+
 				ret = write(ss_fd, "0", 1);
 				ret = ioctl(spi_fd, SPI_IOC_MESSAGE(1), &ioc);
 				ret = write(ss_fd, "1", 1);
-				
+
 				for (y = 0; y < 10 ; y++) {
 					for (x = 0; x < 7 ; x++) {
 						matrix[x][y] = rx_buf[x * 10 + y + 2];
 					}
 				}
 				if (!calc_point()) {
-				// Sometimes there's data but no valid touches due to threshold
+					// Sometimes there's data but no valid touches due to threshold
 					if (need_liftoff) {
 						liftoff();
 						clear_arrays();
 						need_liftoff = 0;
 					} 
 				} else {
-						need_liftoff = 1;
+					need_liftoff = 1;
 				}
 			}
 		}
@@ -749,17 +823,17 @@ void init_uinput()
 	device.id.vendor = 1;
 	device.id.product = 1;
 	device.id.version = 1;
-	
+
 	//device.absmax[ABS_MT_PRESSURE] = 255;
 	//device.absmin[ABS_MT_PRESSURE] = 0;
 	//device.absmax[ABS_MT_TOUCH_MAJOR] = 255;
 	//device.absmin[ABS_MT_TOUCH_MAJOR] = 0;
-	
+
 	device.absmax[ABS_MT_POSITION_X] = X_SCREEN;
 	device.absmax[ABS_MT_POSITION_Y] = Y_SCREEN;
 	device.absmin[ABS_MT_POSITION_X] = 0;
 	device.absmin[ABS_MT_POSITION_Y] = 0;
-	
+
 	device.absfuzz[ABS_MT_POSITION_X] = 2;
 	device.absflat[ABS_MT_POSITION_X] = 0;
 	device.absfuzz[ABS_MT_POSITION_Y] = 1;
@@ -768,23 +842,23 @@ void init_uinput()
 
 	if (write(uinput_fd,&device,sizeof(device)) != sizeof(device))
 		fprintf(stderr, "error setup\n");
-		
+
 	if (ioctl(uinput_fd,UI_SET_EVBIT, EV_KEY) < 0)
 		fprintf(stderr, "error evbit key\n");
 
 	if (ioctl(uinput_fd,UI_SET_EVBIT,EV_ABS) < 0)
 		fprintf(stderr, "error evbit rel\n");
-	
+
 	if (ioctl(uinput_fd,UI_SET_KEYBIT, BTN_TOUCH) < 0)
 		fprintf(stderr, "error keybit key\n");
-		
+
 	if (ioctl(uinput_fd,UI_SET_KEYBIT, KEY_BACK) < 0)
 		fprintf(stderr, "error keybit key\n");
 	if (ioctl(uinput_fd,UI_SET_KEYBIT, KEY_MENU) < 0)
 		fprintf(stderr, "error keybit key\n");
 	if (ioctl(uinput_fd,UI_SET_KEYBIT, KEY_HOME) < 0)
 		fprintf(stderr, "error keybit key\n");
-		
+
 	if (ioctl(uinput_fd,UI_SET_EVBIT, EV_SYN) < 0)
 		fprintf(stderr, "error evbit key\n");
 
@@ -796,7 +870,7 @@ void init_uinput()
 
 	if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_POSITION_Y) < 0)
 		fprintf(stderr, "error tool rel\n");
-	
+
 	if (ioctl(uinput_fd,UI_SET_ABSBIT,ABS_MT_PRESSURE) < 0)
 		fprintf(stderr, "error tool rel\n");
 

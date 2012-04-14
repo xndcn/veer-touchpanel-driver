@@ -10,5 +10,6 @@ If you have problem in compiling ctp.c, please don't delete it.
 by xndcn.
 
 UPDATE:
-03-26	add multi-touch support.
+04-14	add more gesture support(LEFT: back, UP:home, DOUBLE CLICK:home, LONG TOUCH:last apps, RIGHT: menu)
 03-27	add simple gesture support(back, menu & home)
+03-26	add multi-touch support.
